@@ -1,5 +1,7 @@
 # Sutradhar · सूत्रधार
 
+![Sutradhar](docs/screenshot.jpeg)
+
 **The narrator who never forgets.** A continuity editor for fiction writers, powered by the [BharatCode](https://bharatcode.ai) model API.
 
 Long stories lie to themselves. Eyes change colour between chapter 1 and chapter 12. A grandmother dies in chapter 2 and pours tea in chapter 4. A character is on a train to Delhi at six and back home by nine. Human editors catch these on the third read; Sutradhar catches them on the first.
