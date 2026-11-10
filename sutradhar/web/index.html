@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sutradhar · continuity editor for fiction</title>
+<style>
+:root{--bg:#101012;--card:#18181b;--line:#2a2a30;--tx:#ececf0;--mu:#9a9aa6;--or:#ff9a3d;--hi:#ff5d5d;--me:#ff9a3d;--lo:#e6c84a;--ok:#4cc38a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 Inter,system-ui,sans-serif}
+header{padding:28px 32px 8px}h1{margin:0;font-size:30px;letter-spacing:-.5px}h1 span{color:var(--or)}
+.sub{color:var(--mu);margin:4px 0 0}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:20px;padding:20px 32px 48px}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+textarea{width:100%;height:340px;background:#0d0d0f;color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:12px;font:14px/1.5 Georgia,serif;resize:vertical}
+button{background:var(--or);color:#1a1100;border:0;border-radius:10px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:14px}
+button.ghost{background:transparent;color:var(--tx);border:1px solid var(--line)}button:disabled{opacity:.5;cursor:wait}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}.mu{color:var(--mu);font-size:13px}
+.bar{height:6px;background:#26262c;border-radius:4px;overflow:hidden;margin-top:12px;display:none}.bar i{display:block;height:100%;width:0;background:var(--or);transition:width .3s}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}.tab{padding:7px 14px;border-radius:999px;border:1px solid var(--line);cursor:pointer;color:var(--mu);background:none}
+.tab.on{background:var(--or);color:#1a1100;border-color:var(--or);font-weight:700}
+.stats{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px}.stats b{font-size:22px;display:block}
+.issue{border:1px solid var(--line);border-left:4px solid var(--me);border-radius:10px;padding:14px;margin-bottom:12px;background:#141417}
+.issue.high{border-left-color:var(--hi)}.issue.low{border-left-color:var(--lo)}
+.issue h3{margin:0 0 6px;font-size:16px}.tag{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:4px}
+.ev{margin:8px 0;padding:8px 10px;background:#0d0d0f;border-radius:8px;font-family:Georgia,serif;font-size:14px}.ev small{font-family:system-ui;color:var(--or);display:block;margin-bottom:2px}
+.ok{color:var(--ok)}.warn{color:var(--hi)}.fix{margin-top:8px;color:#c9f0dc}
+.char{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}.char h4{margin:0 0 6px}
+.fact{display:flex;gap:8px;font-size:13px;padding:2px 0}.fact span:first-child{color:var(--mu);min-width:120px}.fact.bad b{color:var(--hi)}
+.ch{margin-bottom:14px}.ch h4{margin:0 0 4px;color:var(--or)}.ch li{margin-bottom:3px}
+input[type=text]{flex:1;min-width:200px;background:#0d0d0f;border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:10px}
+.qa{margin-top:12px}.qa .q{color:var(--or);font-weight:600}.qa .a{margin:2px 0 14px}
+.empty{color:var(--mu);padding:40px 10px;text-align:center}.err{color:var(--hi);margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Sutradhar <span>सूत्रधार</span></h1>
+  <p class="sub">The narrator who never forgets. Paste your manuscript; get the contradictions, the story bible, and answers.</p>
+</header>
+<main>
+  <section class="card">
+    <textarea id="text" placeholder="Paste your story here (chapters starting with “Chapter 1”, “## Title” etc.)…"></textarea>
+    <div class="row">
+      <button id="go">Check continuity</button>
+      <button class="ghost" id="demo">Try the demo story</button>
+      <label class="mu"><input type="checkbox" id="deep" checked> deep scan</label>
+    </div>
+    <div class="row"><input type="file" id="file" accept=".txt,.md" class="mu"></div>
+    <div class="bar" id="bar"><i id="fill"></i></div>
+    <div class="mu" id="msg"></div><div class="err" id="err"></div>
+    <p class="mu" id="live"></p>
+  </section>
+  <section class="card" id="out"><div class="empty">Results appear here. Try the demo story to see Sutradhar catch three planted errors in a short mystery.</div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s);let job=null,res=null,tab='issues';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+fetch('/api/config').then(r=>r.json()).then(c=>{$('#live').textContent=c.live?'Live mode: using the BharatCode model API.':'No API key on this server: demo mode only.'});
+$('#file').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(t=>$('#text').value=t)};
+$('#demo').onclick=async()=>{const t=await (await fetch('/api/demo-text')).json();$('#text').value=t.text;run(true)};
+$('#go').onclick=()=>run(false);
+async function run(demo){
+  $('#err').textContent='';$('#go').disabled=$('#demo').disabled=true;$('#bar').style.display='block';
+  const r=await fetch('/api/analyze',{method:'POST',body:JSON.stringify({text:$('#text').value,demo,deep:$('#deep').checked})});
+  const d=await r.json();
+  if(d.error){fail(d.error);return}
+  job=d.job;poll();
+}
+function fail(m){$('#err').textContent=m;$('#go').disabled=$('#demo').disabled=false;$('#bar').style.display='none';$('#msg').textContent=''}
+async function poll(){
+  const d=await (await fetch('/api/job/'+job)).json();
+  $('#fill').style.width=Math.round((d.progress||0)*100)+'%';$('#msg').textContent=d.message||'';
+  if(d.status==='running')return setTimeout(poll,500);
+  $('#go').disabled=$('#demo').disabled=false;$('#bar').style.display='none';
+  if(d.status==='error')return fail(d.error);
+  res=d.result;tab='issues';render();
+}
+function render(){
+  const s=res.stats;
+  const tabs=[['issues','Issues ('+s.issues+')'],['bible','Story bible'],['timeline','Timeline'],['ask','Ask']];
+  $('#out').innerHTML=`<div class="stats"><div><b>${s.chapters}</b>chapters</div><div><b>${s.words.toLocaleString()}</b>words</div><div><b>${s.characters}</b>characters</div><div><b style="color:${s.issues?'var(--hi)':'var(--ok)'}">${s.issues}</b>issues</div></div>
+  <div class="tabs">${tabs.map(t=>`<button class="tab ${t[0]===tab?'on':''}" onclick="tab='${t[0]}';render()">${t[1]}</button>`).join('')}</div><div id="pane"></div>`;
+  ({issues,bible,timeline,askTab})[tab==='ask'?'askTab':tab]();
+}
+function issues(){
+  let h=res.issues.length?'':'<div class="empty">No continuity problems found. ✅</div>';
+  for(const i of res.issues){
+    h+=`<div class="issue ${i.severity}"><div class="tag">${i.severity} · ${i.type} · ${Math.round(i.confidence*100)}% sure</div><h3>${esc(i.title)}</h3><div>${esc(i.explanation)}</div>`;
+    for(const e of i.evidence)h+=`<div class="ev"><small>Ch ${e.chapter} · ${esc(e.title)} ${e.verified===true?'<span class="ok">✓ quote found in text</span>':e.verified===false?'<span class="warn">⚠ quote not found</span>':''}</small>${e.quote?'“'+esc(e.quote)+'”':''}</div>`;
+    if(i.suggested_fix)h+=`<div class="fix">Fix: ${esc(i.suggested_fix)}</div>`;
+    h+='</div>';
+  }
+  for(const w of res.warnings||[])h+=`<div class="err">⚠ ${esc(w)}</div>`;
+  $('#pane').innerHTML=h;
+}
+function bible(){
+  let h='';
+  for(const [n,c] of Object.entries(res.bible.characters)){
+    const by={};c.facts.forEach(f=>(by[f.attr]=by[f.attr]||[]).push(f));
+    h+=`<div class="char"><h4>${esc(n)}</h4><div class="mu">in chapters ${c.appearances.join(', ')||'—'}${c.aliases.length?' · aka '+esc(c.aliases.join(', ')):''}</div>`;
+    for(const [a,fs] of Object.entries(by)){const bad=new Set(fs.map(f=>f.value.toLowerCase())).size>1;
+      h+=`<div class="fact ${bad?'bad':''}"><span>${esc(a.replace('_',' '))}</span><b>${fs.map(f=>esc(f.value)+' <small>(ch'+f.chapter+')</small>').join(' → ')}</b></div>`}
+    c.deaths.forEach(d=>h+=`<div class="fact bad"><span>status</span><b>dies in ch${d.chapter}</b></div>`);
+    h+='</div>';
+  }
+  $('#pane').innerHTML=h||'<div class="empty">No characters extracted.</div>';
+}
+function timeline(){
+  let h='';
+  for(const ch of res.chapters){
+    const ev=res.bible.events.filter(e=>e.chapter===ch.index);
+    h+=`<div class="ch"><h4>${ch.index}. ${esc(ch.title)}</h4><ul>${ev.map(e=>`<li><b>${esc(e.time||'?')}</b> · ${esc(e.location||'?')} — ${esc(e.summary)}</li>`).join('')}</ul></div>`;
+  }
+  $('#pane').innerHTML=h;
+}
+let qa=[];
+function askTab(){
+  $('#pane').innerHTML=`<div class="row" style="margin-top:0"><input type="text" id="q" placeholder="e.g. When does Dadi die? What does the key open?"><button id="askb">Ask</button></div><div class="qa" id="qa">${qa.map(x=>`<div class="q">${esc(x[0])}</div><div class="a">${esc(x[1])}</div>`).join('')}</div>`;
+  const go=async()=>{const q=$('#q').value.trim();if(!q)return;$('#askb').disabled=true;
+    const d=await (await fetch('/api/ask',{method:'POST',body:JSON.stringify({job,question:q})})).json();
+    qa.unshift([q,d.answer||d.error]);askTab()};
+  $('#askb').onclick=go;$('#q').onkeydown=e=>{if(e.key==='Enter')go()};
+}
+</script>
+</body>
+</html>

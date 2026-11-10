@@ -1,0 +1,26 @@
+Project: Sutradhar - a continuity editor for fiction writers
+Category: Writing & creative work
+Author: Aastha Mahajan (GitHub: aastha-m22)
+Built for: BharatCode Build League
+
+What it does
+  Sutradhar reads a manuscript, builds a "story bible" (characters, facts, timeline),
+  and flags continuity errors: changed eye colours, characters who act after dying,
+  impossible travel times. Every flagged issue quotes the text, and each quote is
+  checked against the manuscript so hallucinated evidence is marked. You can also
+  ask questions about your story ("When did Dadi last see Meera?").
+
+How BharatCode is used
+  All model calls go to the BharatCode model API (OpenAI-compatible chat completions):
+    Base URL : https://bharatcode.ai/api/model/v1
+    Models   : qwen-3.8-27b (default), deepseek-v4.1-flash
+    Auth     : BHARATCODE_API_KEY environment variable
+  Code: sutradhar/llm.py (client), sutradhar/prompts.py (prompts), sutradhar/pipeline.py
+
+Run it
+  export BHARATCODE_API_KEY=...        # optional, the demo mode needs no key
+  python -m sutradhar serve            # web app on http://127.0.0.1:8000
+  python -m sutradhar check story.md   # CLI
+  python -m sutradhar check --demo     # offline demo, no key
+
+No secrets, tokens, or private user data are included in this repository.
